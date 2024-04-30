@@ -1,0 +1,109 @@
+---
+title: "illnesses.qmd"
+format: pdf
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+```
+
+```{r}
+covid <- read_csv("Covid Data.csv")
+
+```
+
+```{r}
+# 0 = did not die
+# 1 = died
+covid_health <- covid |>
+  mutate(
+    died = if_else(DATE_DIED == "9999-99-99", 0, 1)
+  ) |>
+  filter(PNEUMONIA != 97 & PNEUMONIA != 99 & PNEUMONIA != 98) |>
+  filter(DIABETES != 97 & DIABETES != 99 & DIABETES != 98) |>
+  filter(INMSUPR != 97 & INMSUPR != 99 & INMSUPR != 98) |>
+  filter(HIPERTENSION != 97 & HIPERTENSION != 99 & HIPERTENSION != 98) |>
+  filter(OTHER_DISEASE != 97 & OTHER_DISEASE != 99 & OTHER_DISEASE != 98) |>
+  filter(CARDIOVASCULAR != 97 & CARDIOVASCULAR != 99 & CARDIOVASCULAR != 98) |>
+  filter(RENAL_CHRONIC != 97 & RENAL_CHRONIC != 99 & RENAL_CHRONIC != 98) |>
+  filter(ASTHMA != 97 & ASTHMA != 99 & ASTHMA != 98)
+
+
+covid_health
+
+```
+
+```{r}
+# pneumonia specifically influential bc it's a lung disease
+
+covid_health |>
+  mutate(PNEUMONIA = if_else(PNEUMONIA == 1, "Pneumonia", "No Pneumonia")) |>
+  mutate(died = if_else(died == 1, "Died", "Alive")) |>
+  ggplot(aes(x = PNEUMONIA, fill = died)) +
+  geom_bar(position = "fill")  +
+  labs(title = "Deaths by COVID-19 Based on Presence of Pneumonia", y = "Proportion of Patients that Died", x = "Presence of Pneumonia", fill = "Death from COVID-19")
+
+
+```
+
+```{r}
+covid_long <- covid |>
+  select(PNEUMONIA, DIABETES, ASTHMA, INMSUPR, HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, died) |>
+  pivot_longer(
+    cols = c('PNEUMONIA', 'DIABETES', 'ASTHMA', 'INMSUPR', 'HIPERTENSION', 'OTHER_DISEASE', 'CARDIOVASCULAR', 'RENAL_CHRONIC'),
+    names_to = "Health Condition",
+    values_to = "Presence"
+  ) |>
+  mutate(Presence = if_else(Presence == 1, "Yes", "No"))
+
+covid_long
+
+
+```
+
+```{r}
+covid_long |>
+  factor(Presence, levels = c("Yes", "No")) |>
+  ggplot(aes(x = `Health Condition`, y = died, fill = Presence)) +
+  scale_fill_manual(values = c("Yes" - "red", "No" = "green"))
+
+```
+
+```{r}
+
+logit_mod_health <- glm(died ~ as.factor(PNEUMONIA) + as.factor(DIABETES) + as.factor(ASTHMA) + as.factor(INMSUPR) + as.factor(HIPERTENSION) + as.factor(CARDIOVASCULAR) + as.factor(RENAL_CHRONIC),
+                        data = covid_health,
+                        family = "binomial")
+
+tidy(logit_mod_health)
+
+
+
+```
+
+```{r}
+logit_health_aug <- augment(logit_mod_health)
+
+logit_health_aug
+
+
+```
+
+```{r}
+logit_health_aug <- logit_health_aug |>
+  mutate(prob = exp(.fitted)/(1 + exp(.fitted)),
+         pred_died = ifelse(prob > 0.5, "Died", "Did Not Die")) %>% 
+  select(.fitted, prob, pred_died, died)
+
+logit_health_aug
+
+
+
+```
+
+```{r}
+table(logit_health_aug$pred_died, logit_health_aug$died)
+
+```
