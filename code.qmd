@@ -1,5 +1,5 @@
 ---
-title: "illnesses.qmd"
+title: "Code: EDA and Models"
 format: pdf
 editor: visual
 ---
@@ -18,9 +18,6 @@ covid <- read_csv("Covid Data.csv")
 # 0 = did not die
 # 1 = died
 covid_health <- covid |>
-  mutate(
-    died = if_else(DATE_DIED == "9999-99-99", 0, 1)
-  ) |>
   filter(PNEUMONIA != 97 & PNEUMONIA != 99 & PNEUMONIA != 98) |>
   filter(DIABETES != 97 & DIABETES != 99 & DIABETES != 98) |>
   filter(INMSUPR != 97 & INMSUPR != 99 & INMSUPR != 98) |>
@@ -30,11 +27,24 @@ covid_health <- covid |>
   filter(RENAL_CHRONIC != 97 & RENAL_CHRONIC != 99 & RENAL_CHRONIC != 98) |>
   filter(ASTHMA != 97 & ASTHMA != 99 & ASTHMA != 98) |>
   filter(AGE != 97 & AGE != 99 & AGE != 98) |>
-  filter(SEX != 97 & SEX != 99 & SEX != 98)
+  filter(SEX != 97 & SEX != 99 & SEX != 98) |>
+  
+  mutate(
+    died = if_else(DATE_DIED == "9999-99-99", 0, 1),
+    PNEUMONIA = if_else(PNEUMONIA == 2, 0, 1),
+    DIABETES = if_else(DIABETES == 2, 0, 1),
+    INMSUPR = if_else(INMSUPR == 2, 0, 1),
+    HIPERTENSION = if_else(HIPERTENSION == 2, 0, 1),
+    OTHER_DISEASE = if_else(OTHER_DISEASE == 2, 0, 1),
+    CARDIOVASCULAR = if_else(CARDIOVASCULAR == 2, 0, 1),
+    RENAL_CHRONIC = if_else(RENAL_CHRONIC == 2, 0, 1),
+    ASTHMA = if_else(ASTHMA == 2, 0, 1),
+  )
 
 covid_health
 
 ```
+### HEALTH CONDITIONS
 
 ```{r}
 # pneumonia specifically influential bc it's a lung disease
@@ -73,6 +83,25 @@ logit_mod_health <- glm(died ~ as.factor(PNEUMONIA) + as.factor(DIABETES) + as.f
 tidy(logit_mod_health)
 
 ```
+```{r}
+exp(coef(logit_mod_health))
+
+
+```
+An patient with pneumonia is predicted to have approximately 18.887 times the odds of dying from COVID-19 compared to a patient without pneumonia, while adjusting for the presence of diabetes, asthma, immunosuppression, hypertension, cardiovascular disease, and chronic renal disease.
+
+An patient with diabetes is predicted to have approximately 2.046 times the odds of dying from COVID-19 compared to a patient without diabetes, while adjusting for the presence of pneumonia, asthma, immunosuppression, hypertension, cardiovascular disease, and chronic renal disease.
+
+An patient with asthma is predicted to have approximately 0.598 times the odds of dying from COVID-19 compared to a patient without asthma, while adjusting for the presence of pneumonia, diabetes, immunosuppression, hypertension, cardiovascular disease, and chronic renal disease.
+
+An patient who is immunosuppressed is predicted to have approximately 1.329 times the odds of dying from COVID-19 compared to a patient who is not immunosuppressed, while adjusting for the presence of pneumonia, diabetes, asthma, hypertension, cardiovascular disease, and chronic renal disease.
+
+An patient who has hypertension is predicted to have approximately 2.116 times the odds of dying from COVID-19 compared to a patient who does not have hypertension, while adjusting for the presence of pneumonia, diabetes, asthma, immunosuppression, cardiovascular disease, and chronic renal disease.
+
+An patient who has cardiovascular disease is predicted to have approximately 1.26 times the odds of dying from COVID-19 compared to a patient who does not have cardiovascular disease, while adjusting for the presence of pneumonia, diabetes, asthma, immunosuppression, hypertension, and chronic renal disease.
+
+An patient who has chronic renal disease is predicted to have approximately 1.740 times the odds of dying from COVID-19 compared to a patient who does not have chronic renal disease, while adjusting for the presence of pneumonia, diabetes, asthma, immunosuppression, hypertension, and cardiovascular disease.
+
 
 ```{r}
 logit_health_aug <- augment(logit_mod_health)
@@ -97,6 +126,34 @@ logit_health_aug
 table(logit_health_aug$pred_died, logit_health_aug$died)
 
 ```
+Sensitivity: TP / (TP+FN) = 13717 / (13717 + 61217) =
+
+Specificity: TN / (TN + FP) = 937900 / (937900 + 13211) =
+
+Positive Predicted Value: TP/(TP + FP) = 13717 / (13717 + 13211) =
+
+Negative Predicted Value: TN/(TN + FN) = 937900 / (937900 + 61217) =
+
+```{r}
+logit_health_aug |> 
+  roc_curve(
+    truth = as.factor(died),
+    prob, 
+    event_level = "second"
+  ) |>
+  autoplot()
+```
+```{r}
+logit_health_aug |>
+  roc_auc(
+    truth = as.factor(died),
+    prob, 
+    event_level = "second"
+  )
+
+```
+
+
 ##DEMOGRAPHICS:
 ```{r}
 covid_health$PREGNANT <- NULL
@@ -167,6 +224,8 @@ y = "Age") +
 scale_fill_manual(values = c("Didn't Die" = "lightblue", "Died" = "pink")) +
 theme_minimal() +
 theme(legend.position = "none")
+
+
 ```
 ```{r}
 ggplot(covid_health, aes(x = AGE, fill = DIED)) +
@@ -197,6 +256,7 @@ pred_died = ifelse(prob > 0.5, "Died", "Did Not Die")) |>
 select(.fitted, prob, pred_died, DIED)
 logit_demo_aug
 ```
+
 ```{r}
 logit_demo_aug |>
 roc_auc(
