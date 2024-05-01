@@ -102,7 +102,7 @@ logit_mod_health <- glm(died ~ as.factor(PNEUMONIA) + as.factor(DIABETES) + as.f
                         data = covid_health,
                         family = "binomial")
 
-tidy(logit_mod_health)
+summary(logit_mod_health)
 
 ```
 
@@ -161,7 +161,7 @@ Negative Predicted Value: TN/(TN + FN) = 937900 / (937900 + 61217) =
 ```{r}
 logit_health_aug |>
 roc_auc(
-truth = died,
+truth = as.factor(died),
 prob, event_level = "second"
 )
 ```
@@ -258,7 +258,7 @@ scale_fill_manual(values = c("0" = "lightblue", "1" = "red"))
 
 ```{r}
 logit_mod_demo <- glm(DIED ~ as.factor(SEX) + AGE, data = covid_health, family = "binomial")
-tidy(logit_mod_demo)
+summary(logit_mod_demo)
 ```
 
 SEX male: Holding age constant, we predict the odds of a male patient in the COVID-19 dataset passing away to be around e\^0.63753001(1.8918) times that of a female patient. 
