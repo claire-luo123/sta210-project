@@ -7,6 +7,8 @@ editor: visual
 ```{r}
 library(tidyverse)
 library(tidymodels)
+library(ggplot2)
+library(dplyr)
 ```
 
 ```{r}
@@ -44,6 +46,11 @@ covid_health <- covid |>
 covid_health
 
 ```
+```{r}
+covid_health <- covid_health |>
+  mutate(died = as.factor(died))
+```
+
 ### HEALTH CONDITIONS
 
 ```{r}
@@ -56,7 +63,22 @@ covid_health |>
   geom_bar(position = "fill")  +
   labs(title = "Deaths by COVID-19 Based on Presence of Pneumonia", y = "Proportion of Patients that Died", x = "Presence of Pneumonia", fill = "Death from COVID-19")
 
+```
+```{r}
+covid_long <- covid_health |>
+  select(PNEUMONIA, DIABETES, INMSUPR,HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, ASTHMA, DIED) |>
+  pivot_longer(cols = c(PNEUMONIA, DIABETES, INMSUPR,HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, ASTHMA), names_to = "Condition", values_to = "Status") |>
+  mutate(Status = ifelse(Status == 1, "Y", "N"))
 
+ggplot(covid_long, aes(x = as.factor(Status), fill = as.factor(DIED))) +
+  geom_bar(position = "fill") +
+  facet_wrap(~ Condition, scales = "free") +
+  labs(title = "Health Conditions versus. COVID-19 Death Proportions", subtitle = 
+         "Higher proportion of deaths among those who have pneumonia",
+       x = "Condition Status", y = "Proportion of Patients", fill = "Death") +
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"), labels = c("Survived", "Died")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 ```{r}
@@ -83,11 +105,13 @@ logit_mod_health <- glm(died ~ as.factor(PNEUMONIA) + as.factor(DIABETES) + as.f
 tidy(logit_mod_health)
 
 ```
+
 ```{r}
 exp(coef(logit_mod_health))
 
 
 ```
+
 An patient with pneumonia is predicted to have approximately 18.887 times the odds of dying from COVID-19 compared to a patient without pneumonia, while adjusting for the presence of diabetes, asthma, immunosuppression, hypertension, cardiovascular disease, and chronic renal disease.
 
 An patient with diabetes is predicted to have approximately 2.046 times the odds of dying from COVID-19 compared to a patient without diabetes, while adjusting for the presence of pneumonia, asthma, immunosuppression, hypertension, cardiovascular disease, and chronic renal disease.
@@ -101,7 +125,6 @@ An patient who has hypertension is predicted to have approximately 2.116 times t
 An patient who has cardiovascular disease is predicted to have approximately 1.26 times the odds of dying from COVID-19 compared to a patient who does not have cardiovascular disease, while adjusting for the presence of pneumonia, diabetes, asthma, immunosuppression, hypertension, and chronic renal disease.
 
 An patient who has chronic renal disease is predicted to have approximately 1.740 times the odds of dying from COVID-19 compared to a patient who does not have chronic renal disease, while adjusting for the presence of pneumonia, diabetes, asthma, immunosuppression, hypertension, and cardiovascular disease.
-
 
 ```{r}
 logit_health_aug <- augment(logit_mod_health)
@@ -126,6 +149,7 @@ logit_health_aug
 table(logit_health_aug$pred_died, logit_health_aug$died)
 
 ```
+
 Sensitivity: TP / (TP+FN) = 13717 / (13717 + 61217) =
 
 Specificity: TN / (TN + FP) = 937900 / (937900 + 13211) =
@@ -135,30 +159,22 @@ Positive Predicted Value: TP/(TP + FP) = 13717 / (13717 + 13211) =
 Negative Predicted Value: TN/(TN + FN) = 937900 / (937900 + 61217) =
 
 ```{r}
-logit_health_aug |> 
-  roc_curve(
-    truth = as.factor(died),
-    prob, 
-    event_level = "second"
-  ) |>
-  autoplot()
-```
-```{r}
 logit_health_aug |>
-  roc_auc(
-    truth = as.factor(died),
-    prob, 
-    event_level = "second"
-  )
-
+roc_auc(
+truth = died,
+prob, event_level = "second"
+)
 ```
 
+The AUC achieved by the model is 0.8718065. This value indicates that the model has an 87.18% probability of correctly distinguishing between a patient who died from COVID-19 and one who did not, based on the model's predicted probabilities. 
 
 ##DEMOGRAPHICS:
+
 ```{r}
 covid_health$PREGNANT <- NULL
 covid_health
 ```
+
 ```{r}
 covid_health<- covid_health |>
 mutate(DIED = ifelse(DATE_DIED == '9999-99-99', 0, 1)) |>
@@ -166,6 +182,7 @@ mutate(SEX = as.factor(SEX)) |>
 mutate(DIED = as.factor(DIED))
 covid_health
 ```
+
 ```{r}
 covid_health$SEX <- factor(covid_health$SEX, levels = c(1, 2), labels = c("Female", "Male"))
 covid_health
@@ -192,6 +209,7 @@ legend.position = "none" # Remove legend if redundant
 ) +
 scale_y_continuous(labels = comma)
 ```
+
 ```{r}
 covid_summary <- covid_health |>
 count(SEX, DIED) |>
@@ -227,6 +245,7 @@ theme(legend.position = "none")
 
 
 ```
+
 ```{r}
 ggplot(covid_health, aes(x = AGE, fill = DIED)) +
 geom_histogram(binwidth = 5, position = "dodge") +
@@ -241,9 +260,10 @@ scale_fill_manual(values = c("0" = "lightblue", "1" = "red"))
 logit_mod_demo <- glm(DIED ~ as.factor(SEX) + AGE, data = covid_health, family = "binomial")
 tidy(logit_mod_demo)
 ```
-SEX male: Holding age constant, we predict the odds of a male patient in the COVID-19 dataset passing away to be around e^0.63753001(1.8918) times that of a female patient.
-AGE: Holding sex constant, we predict that for each additional year in age of the patient, the
-odds of passing away are multiplied by e^0.07605202(1.0790).
+
+SEX male: Holding age constant, we predict the odds of a male patient in the COVID-19 dataset passing away to be around e\^0.63753001(1.8918) times that of a female patient. 
+AGE: Holding sex constant, we predict that for each additional year in age of the patient, the odds of passing away are multiplied by e\^0.07605202(1.0790).
+
 ```{r}
 logit_demo_aug <- augment(logit_mod_demo)
 logit_demo_aug
@@ -255,6 +275,22 @@ mutate(prob = exp(.fitted)/(1 + exp(.fitted)),
 pred_died = ifelse(prob > 0.5, "Died", "Did Not Die")) |>
 select(.fitted, prob, pred_died, DIED)
 logit_demo_aug
+```
+
+```{r}
+table(logit_demo_aug$pred_died, logit_demo_aug$DIED)
+```
+```{r}
+TP <- 4468
+TN <- 943940
+FP <- 70364
+FN <- 6950
+
+sensitivity <- TP / (TP + FN)
+specificity <- TN / (TN + FP)
+ppv <- TP / (TP + FP)
+npv <- TN / (TN + FN)
+list(Sensitivity = sensitivity, Specificity = specificity, PPV = ppv, NPV = npv)
 ```
 
 ```{r}
@@ -275,15 +311,14 @@ event_level = "second"
 autoplot()
 ```
 
-The AUC I achieved is 0.8395. It means that there is approximately an 83.95% chance that the model will be able to distinguish between a patient who died and one who did not die from COVID-19.
+The AUC achieved by the model is 0.8395. This value indicates that the model has an 83.95% probability of correctly distinguishing between a patient who died from COVID-19 and one who did not, based on the model's predicted probabilities. 
+
 ```{r}
 library(Stat2Data)
 library(pROC)
 emplogitplot1(DIED ~ AGE, data = covid_health, ngroups = 20,
 main = "Linerity Satisfied Log(Odds) vs. AGE")
 ```
-Since age is the only continous variable in the model, we must check our linearity assumption.
-From the plot graphed above, we see that it displays a linear relationship between the log odds
-of dying and age. The graph displays points that are relatively linearly uniform and follow the
-trend of the line. From the graph, we do not see that it contain any distinct trend that would
-challenge our assumption of linearity
+
+Since age is the only continous variable in the model, we must check our linearity assumption. From the plot graphed above, we see that it displays a linear relationship between the log odds of dying and age. The graph displays points that are relatively linearly uniform and follow the trend of the line. From the graph, we do not see that it contain any distinct trend that would challenge our assumption of linearity.
+
