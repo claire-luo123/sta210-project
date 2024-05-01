@@ -28,8 +28,9 @@ covid_health <- covid |>
   filter(OTHER_DISEASE != 97 & OTHER_DISEASE != 99 & OTHER_DISEASE != 98) |>
   filter(CARDIOVASCULAR != 97 & CARDIOVASCULAR != 99 & CARDIOVASCULAR != 98) |>
   filter(RENAL_CHRONIC != 97 & RENAL_CHRONIC != 99 & RENAL_CHRONIC != 98) |>
-  filter(ASTHMA != 97 & ASTHMA != 99 & ASTHMA != 98)
-
+  filter(ASTHMA != 97 & ASTHMA != 99 & ASTHMA != 98) |>
+  filter(AGE != 97 & AGE != 99 & AGE != 98) |>
+  filter(SEX != 97 & SEX != 99 & SEX != 98)
 
 covid_health
 
@@ -49,7 +50,7 @@ covid_health |>
 ```
 
 ```{r}
-covid_long <- covid |>
+covid_long <- covid_health |>
   select(PNEUMONIA, DIABETES, ASTHMA, INMSUPR, HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, died) |>
   pivot_longer(
     cols = c('PNEUMONIA', 'DIABETES', 'ASTHMA', 'INMSUPR', 'HIPERTENSION', 'OTHER_DISEASE', 'CARDIOVASCULAR', 'RENAL_CHRONIC'),
@@ -64,22 +65,12 @@ covid_long
 ```
 
 ```{r}
-covid_long |>
-  factor(Presence, levels = c("Yes", "No")) |>
-  ggplot(aes(x = `Health Condition`, y = died, fill = Presence)) +
-  scale_fill_manual(values = c("Yes" - "red", "No" = "green"))
-
-```
-
-```{r}
 
 logit_mod_health <- glm(died ~ as.factor(PNEUMONIA) + as.factor(DIABETES) + as.factor(ASTHMA) + as.factor(INMSUPR) + as.factor(HIPERTENSION) + as.factor(CARDIOVASCULAR) + as.factor(RENAL_CHRONIC),
                         data = covid_health,
                         family = "binomial")
 
 tidy(logit_mod_health)
-
-
 
 ```
 
@@ -100,10 +91,139 @@ logit_health_aug <- logit_health_aug |>
 logit_health_aug
 
 
-
 ```
 
 ```{r}
 table(logit_health_aug$pred_died, logit_health_aug$died)
 
 ```
+##DEMOGRAPHICS:
+```{r}
+covid_health$PREGNANT <- NULL
+covid_health
+```
+```{r}
+covid_health<- covid_health |>
+mutate(DIED = ifelse(DATE_DIED == '9999-99-99', 0, 1)) |>
+mutate(SEX = as.factor(SEX)) |>
+mutate(DIED = as.factor(DIED))
+covid_health
+```
+```{r}
+covid_health$SEX <- factor(covid_health$SEX, levels = c(1, 2), labels = c("Female", "Male"))
+covid_health
+```
+
+```{r}
+library(scales)
+covid_health |>
+filter(DIED == 1) |>
+ggplot(aes(x = SEX, fill = SEX)) +
+geom_bar(stat = "count", width = 0.6) + # Adjust bar width for aesthetics
+scale_fill_manual(values = c("blue", "orange")) + # Change colors for clarity
+labs(
+title = "Number of Deaths by Sex",
+x = "Gender",
+y = "Count of Deaths"
+) +
+theme_minimal() +
+theme(
+text = element_text(size = 14), # Adjust text size for better readability
+plot.title = element_text(hjust = 0.5), # Center the plot title
+axis.title = element_text(size = 12), # Specify axis title size
+legend.position = "none" # Remove legend if redundant
+) +
+scale_y_continuous(labels = comma)
+```
+```{r}
+covid_summary <- covid_health |>
+count(SEX, DIED) |>
+group_by(SEX) |>
+mutate(Proportion = n / sum(n))
+# Plot
+ggplot(covid_summary, aes(x = SEX, y = Proportion, fill = DIED)) +
+geom_col() +
+scale_y_continuous(labels = scales::percent_format()) +
+labs(
+title = "Proportion of COVID-19 Deaths by Sex",
+subtitle = "Male Proportion of Deaths is Larger than Females",
+x = "SEX",
+y = "Proportion"
+) +
+scale_fill_manual(values = c("0" = "lightgrey", "1" = "red"),
+labels = c("Survived", "Died")) +
+theme_minimal() +
+theme(legend.title = element_blank())
+```
+
+```{r}
+covid_health |>
+mutate(DIED = factor(DIED, levels = c(0, 1), labels = c("Didn't Die", "Died"))) |>
+ggplot(aes(x = DIED, y = AGE, fill = DIED)) +
+geom_boxplot(outlier.colour = "black", outlier.shape = 1) +
+labs(title = "COVID-19 Death vs. Age Correlation",
+subtitle = "Median age of the deceased patients is greater than that of the survived", x = "Death",
+y = "Age") +
+scale_fill_manual(values = c("Didn't Die" = "lightblue", "Died" = "pink")) +
+theme_minimal() +
+theme(legend.position = "none")
+```
+```{r}
+ggplot(covid_health, aes(x = AGE, fill = DIED)) +
+geom_histogram(binwidth = 5, position = "dodge") +
+facet_wrap(~SEX) +
+labs(title = "Age Distribution by Death Status and Gender",
+x = "Age",
+y = "Count") +
+scale_fill_manual(values = c("0" = "lightblue", "1" = "red"))
+```
+
+```{r}
+logit_mod_demo <- glm(DIED ~ as.factor(SEX) + AGE, data = covid_health, family = "binomial")
+tidy(logit_mod_demo)
+```
+SEX male: Holding age constant, we predict the odds of a male patient in the COVID-19 dataset passing away to be around e^0.63753001(1.8918) times that of a female patient.
+AGE: Holding sex constant, we predict that for each additional year in age of the patient, the
+odds of passing away are multiplied by e^0.07605202(1.0790).
+```{r}
+logit_demo_aug <- augment(logit_mod_demo)
+logit_demo_aug
+```
+
+```{r}
+logit_demo_aug <- logit_demo_aug |>
+mutate(prob = exp(.fitted)/(1 + exp(.fitted)),
+pred_died = ifelse(prob > 0.5, "Died", "Did Not Die")) |>
+select(.fitted, prob, pred_died, DIED)
+logit_demo_aug
+```
+```{r}
+logit_demo_aug |>
+roc_auc(
+truth = DIED,
+prob, event_level = "second"
+)
+```
+
+```{r}
+logit_demo_aug |>
+roc_curve(
+truth = DIED,
+.fitted,
+event_level = "second"
+) |>
+autoplot()
+```
+
+The AUC I achieved is 0.8395. It means that there is approximately an 83.95% chance that the model will be able to distinguish between a patient who died and one who did not die from COVID-19.
+```{r}
+library(Stat2Data)
+library(pROC)
+emplogitplot1(DIED ~ AGE, data = covid_health, ngroups = 20,
+main = "Linerity Satisfied Log(Odds) vs. AGE")
+```
+Since age is the only continous variable in the model, we must check our linearity assumption.
+From the plot graphed above, we see that it displays a linear relationship between the log odds
+of dying and age. The graph displays points that are relatively linearly uniform and follow the
+trend of the line. From the graph, we do not see that it contain any distinct trend that would
+challenge our assumption of linearity
