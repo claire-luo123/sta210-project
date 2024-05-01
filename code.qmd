@@ -66,11 +66,11 @@ covid_health |>
 ```
 ```{r}
 covid_long <- covid_health |>
-  select(PNEUMONIA, DIABETES, INMSUPR,HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, ASTHMA, DIED) |>
+  select(PNEUMONIA, DIABETES, INMSUPR,HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, ASTHMA, died) |>
   pivot_longer(cols = c(PNEUMONIA, DIABETES, INMSUPR,HIPERTENSION, OTHER_DISEASE, CARDIOVASCULAR, RENAL_CHRONIC, ASTHMA), names_to = "Condition", values_to = "Status") |>
   mutate(Status = ifelse(Status == 1, "Y", "N"))
 
-ggplot(covid_long, aes(x = as.factor(Status), fill = as.factor(DIED))) +
+ggplot(covid_long, aes(x = as.factor(Status), fill = as.factor(died))) +
   geom_bar(position = "fill") +
   facet_wrap(~ Condition, scales = "free") +
   labs(title = "Health Conditions versus. COVID-19 Death Proportions", subtitle = 
