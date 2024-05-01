@@ -161,7 +161,7 @@ Negative Predicted Value: TN/(TN + FN) = 937900 / (937900 + 61217) =
 ```{r}
 logit_health_aug |>
 roc_auc(
-truth = as.factor(died),
+truth = died,
 prob, event_level = "second"
 )
 ```
